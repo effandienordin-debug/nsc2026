@@ -9,3 +9,4 @@ webdriver-manager
 extra-streamlit-components
 supabase
 streamlit_autorefresh
+openpyxl
