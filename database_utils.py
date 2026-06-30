@@ -89,6 +89,16 @@ def init_db():
                 UNIQUE(team_name, jury_username)
             )
         """))
+
+        # Tambah dalam init_db()
+conn.execute(text("""
+    CREATE TABLE IF NOT EXISTS group_assignments (
+        id SERIAL PRIMARY KEY,
+        group_category VARCHAR(10), -- A, B, C, atau D
+        jury_username VARCHAR(255),
+        UNIQUE(group_category, jury_username)
+    )
+"""))
         
         # Masukkan Master Admin default jika belum ada
         res = conn.execute(text("SELECT COUNT(*) FROM users")).fetchone()[0]
