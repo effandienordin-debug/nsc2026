@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 from sqlalchemy import text
 
 def render_reporting(engine):
@@ -16,7 +17,6 @@ def render_reporting(engine):
 
     st.header("📄 Scoring Reporting Center (NSC 2026)")
     
-    # Fetch score data from database along with team info
     query = """
         SELECT 
             t.group_category as "Group",
@@ -37,11 +37,10 @@ def render_reporting(engine):
             st.error(f"Error fetching data: {e}")
 
     if df.empty:
-        st.info("💡 No finalized scores to display yet. Juries need to click 'Final Submit' first.")
+        st.info("💡 No finalized scores to display yet.")
     else:
         st.subheader("📊 Jury Scoring Pivot Table")
         
-        # Pivot data so Jury Usernames become Columns
         pivot_df = df.pivot_table(
             index=["Group", "Team Name", "School"], 
             columns="jury_username", 
@@ -49,30 +48,36 @@ def render_reporting(engine):
             aggfunc='mean'
         ).reset_index()
 
-        # Get jury columns list (excluding index columns)
         jury_cols = [col for col in pivot_df.columns if col not in ["Group", "Team Name", "School"]]
-        
-        # Add Average Overall column
         pivot_df['Average Overall'] = pivot_df[jury_cols].mean(axis=1).round(2)
-        
-        # Sort by Group and Highest Average
         pivot_df = pivot_df.sort_values(by=["Group", "Average Overall"], ascending=[True, False])
 
-        st.dataframe(
-            pivot_df,
-            use_container_width=True, 
-            hide_index=True
-        )
+        st.dataframe(pivot_df, use_container_width=True, hide_index=True)
 
         st.divider()
-        col1, col2 = st.columns(2)
         
-        if col1.button("🖨️ Print Report (PDF)", use_container_width=True, type="primary"):
-            st.components.v1.html("<script>window.parent.print();</script>", height=0)
-            st.toast("Opening print dialog...")
+        # --- DOWNLOAD & PRINT SECTION ---
+        col1, col2, col3 = st.columns(3)
+        
+        # 1. Print (PDF)
+        col1.button("🖨️ Print Report (PDF)", on_click=lambda: st.components.v1.html("<script>window.parent.print();</script>", height=0), use_container_width=True, type="primary")
 
+        # 2. Excel Download
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            pivot_df.to_excel(writer, index=False, sheet_name='Scoring Report')
+        
         col2.download_button(
-            label="📊 Download Data (CSV)",
+            label="📊 Download (Excel)",
+            data=buffer,
+            file_name="NSC2026_Scoring_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+        # 3. CSV Download
+        col3.download_button(
+            label="📄 Download (CSV)",
             data=pivot_df.to_csv(index=False),
             file_name="NSC2026_Scoring_Report.csv",
             mime="text/csv",
