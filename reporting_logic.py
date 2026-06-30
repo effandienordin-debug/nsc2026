@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import text
 
 def render_reporting(engine):
-    # --- CSS UNTUK PRINT ---
+    # --- PRINT CSS ---
     st.markdown("""
         <style>
         @media print {
@@ -14,9 +14,9 @@ def render_reporting(engine):
         </style>
     """, unsafe_allow_html=True)
 
-    st.header("📄 Grant Reporting Center (NSC 2026)")
+    st.header("📄 Scoring Reporting Center (NSC 2026)")
     
-    # Ambil data markah dari database beserta info pasukan
+    # Fetch score data from database along with team info
     query = """
         SELECT 
             t.group_category as "Group",
@@ -37,11 +37,11 @@ def render_reporting(engine):
             st.error(f"Error fetching data: {e}")
 
     if df.empty:
-        st.info("💡 Tiada markah muktamad (Finalized) untuk dipaparkan buat masa ini. Juri perlu klik butang 'Final Submit' terlebih dahulu.")
+        st.info("💡 No finalized scores to display yet. Juries need to click 'Final Submit' first.")
     else:
-        st.subheader("📊 Jadual Pemarkahan Juri (Pivot Table)")
+        st.subheader("📊 Jury Scoring Pivot Table")
         
-        # Susun data (Pivot) supaya Nama Juri jadi Lajur (Columns)
+        # Pivot data so Jury Usernames become Columns
         pivot_df = df.pivot_table(
             index=["Group", "Team Name", "School"], 
             columns="jury_username", 
@@ -49,13 +49,13 @@ def render_reporting(engine):
             aggfunc='mean'
         ).reset_index()
 
-        # Dapatkan senarai kolum juri (buang kolum index)
+        # Get jury columns list (excluding index columns)
         jury_cols = [col for col in pivot_df.columns if col not in ["Group", "Team Name", "School"]]
         
-        # Tambah kolum Purata Keseluruhan (Average)
+        # Add Average Overall column
         pivot_df['Average Overall'] = pivot_df[jury_cols].mean(axis=1).round(2)
         
-        # Sort mengikut Group dan Purata tertinggi
+        # Sort by Group and Highest Average
         pivot_df = pivot_df.sort_values(by=["Group", "Average Overall"], ascending=[True, False])
 
         st.dataframe(
@@ -67,12 +67,12 @@ def render_reporting(engine):
         st.divider()
         col1, col2 = st.columns(2)
         
-        if col1.button("🖨️ Cetak Laporan (PDF)", use_container_width=True, type="primary"):
+        if col1.button("🖨️ Print Report (PDF)", use_container_width=True, type="primary"):
             st.components.v1.html("<script>window.parent.print();</script>", height=0)
-            st.toast("Membuka tetapan cetakan...")
+            st.toast("Opening print dialog...")
 
         col2.download_button(
-            label="📊 Muat Turun Data (CSV)",
+            label="📊 Download Data (CSV)",
             data=pivot_df.to_csv(index=False),
             file_name="NSC2026_Scoring_Report.csv",
             mime="text/csv",
