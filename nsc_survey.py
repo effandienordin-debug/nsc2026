@@ -12,10 +12,10 @@ from reviewer_logic import render_review_form
 from reporting_logic import render_reporting
 from form_components import render_scoring_fields
 
-# --- 1. INISIALISASI DATABASE ---
+# --- 1. DATABASE INITIALIZATION ---
 init_db()
 
-st.set_page_config(page_title="NSC 2026 System", layout="wide")
+st.set_page_config(page_title="NSC 2026 Judging System", layout="wide")
 
 # --- 2. COOKIE MANAGER SETUP ---
 if 'cookie_manager' not in st.session_state:
@@ -23,7 +23,7 @@ if 'cookie_manager' not in st.session_state:
 
 cookie_manager = st.session_state.cookie_manager
 
-# --- 3. PROSES ARAHAN KUKI YANG TERTUNGGAK (PENDING QUEUE) ---
+# --- 3. PROCESS PENDING COOKIE ACTIONS ---
 if st.session_state.get('pending_login_cookie'):
     cookie_manager.set('nsc_session_data', st.session_state.pending_login_cookie, expires_at=datetime.now() + timedelta(days=1))
     del st.session_state['pending_login_cookie']
@@ -39,7 +39,7 @@ if st.session_state.get('pending_logout'):
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
-# --- 5. AUTO LOGIN DARI KUKI ---
+# --- 5. AUTO LOGIN FROM COOKIE ---
 if not st.session_state.authenticated:
     if st.session_state.get('just_logged_out_flag'):
         st.session_state.just_logged_out_flag = False
@@ -103,10 +103,10 @@ with st.sidebar:
 
     if st.session_state.role == "Admin":
         opts = ["Dashboard", "Reporting", "Team & Assignment Management", "Jury Management", "User Management"]
-        menu = st.radio("Navigasi", opts)
+        menu = st.radio("Navigation", opts)
     else:
         opts = ["Evaluation Dashboard"]
-        menu = st.radio("Navigasi", opts)
+        menu = st.radio("Navigation", opts)
 
     st.divider()
 
