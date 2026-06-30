@@ -1,37 +1,36 @@
 import streamlit as st
 import extra_streamlit_components as stx
-import pandas as pd
 import json
 import time
 from sqlalchemy import text
 from datetime import datetime, timedelta
 
+# Import modul tempatan
 from database_utils import engine, init_db, check_password, hash_password, get_malaysia_time, delete_item
 from admin_logic import render_dashboard, render_management
 from reviewer_logic import render_review_form
 from reporting_logic import render_reporting
-
-from form_components import render_evaluation_fields, render_scoring_fields
+from form_components import render_scoring_fields
 
 # --- 1. INISIALISASI DATABASE ---
 init_db()
 
-st.set_page_config(page_title="RBS Grant System", layout="wide")
+st.set_page_config(page_title="NSC 2026 System", layout="wide")
 
 # --- 2. COOKIE MANAGER SETUP ---
 if 'cookie_manager' not in st.session_state:
-    st.session_state.cookie_manager = stx.CookieManager(key="rbs_mgr")
+    st.session_state.cookie_manager = stx.CookieManager(key="nsc_mgr")
 
 cookie_manager = st.session_state.cookie_manager
 
 # --- 3. PROSES ARAHAN KUKI YANG TERTUNGGAK (PENDING QUEUE) ---
 if st.session_state.get('pending_login_cookie'):
-    cookie_manager.set('rbs_session_data', st.session_state.pending_login_cookie, expires_at=datetime.now() + timedelta(days=1))
+    cookie_manager.set('nsc_session_data', st.session_state.pending_login_cookie, expires_at=datetime.now() + timedelta(days=1))
     del st.session_state['pending_login_cookie']
 
 if st.session_state.get('pending_logout'):
     try:
-        cookie_manager.delete('rbs_session_data')
+        cookie_manager.delete('nsc_session_data')
     except KeyError:
         pass 
     del st.session_state['pending_logout']
@@ -45,7 +44,7 @@ if not st.session_state.authenticated:
     if st.session_state.get('just_logged_out_flag'):
         st.session_state.just_logged_out_flag = False
     else:
-        session_data = cookie_manager.get('rbs_session_data')
+        session_data = cookie_manager.get('nsc_session_data')
         if session_data:
             try:
                 if isinstance(session_data, str):
@@ -61,9 +60,9 @@ if not st.session_state.authenticated:
 
 # --- 6. LOGIN INTERFACE ---
 if not st.session_state.authenticated:
-    st.title("🔐 RBS Login")
+    st.title("🔐 NSC 2026 Login")
     with st.form("login_form"):
-        login_role = st.radio("Log in as:", ["Reviewer", "Admin"], horizontal=True)
+        login_role = st.radio("Log in as:", ["Jury", "Admin"], horizontal=True)
         u = st.text_input("Username")
         p = st.text_input("Password", type="password")
 
@@ -72,7 +71,7 @@ if not st.session_state.authenticated:
                 if login_role == "Admin":
                     query = text("SELECT password_hash, 'Admin' as role, full_name FROM users WHERE username = :u")
                 else:
-                    query = text("SELECT password_hash, 'Reviewer' as role, full_name FROM reviewers WHERE username = :u")
+                    query = text("SELECT password_hash, 'Jury' as role, full_name FROM juries WHERE username = :u")
 
                 res = conn.execute(query, {"u": u}).fetchone()
 
@@ -103,11 +102,11 @@ with st.sidebar:
     st.caption(f"Logged in as: {st.session_state.role}")
 
     if st.session_state.role == "Admin":
-        opts = ["Dashboard", "Reporting", "Applicant Management", "Phase 2 Management", "Reviewer Management", "User Management"]
-        menu = st.radio("Navigation", opts)
+        opts = ["Dashboard", "Reporting", "Team & Assignment Management", "Jury Management", "User Management"]
+        menu = st.radio("Navigasi", opts)
     else:
-        opts = ["Phase 1: Shortlisting", "Phase 2: Evaluation"]
-        menu = st.radio("Navigation", opts)
+        opts = ["Evaluation Dashboard"]
+        menu = st.radio("Navigasi", opts)
 
     st.divider()
 
@@ -122,8 +121,7 @@ if menu == "Dashboard":
     render_dashboard(engine)
 elif menu == "Reporting": 
     render_reporting(engine)
-elif menu in ["User Management", "Reviewer Management", "Applicant Management", "Phase 2 Management"]:
+elif menu in ["User Management", "Jury Management", "Team & Assignment Management"]:
     render_management(menu, engine, hash_password, delete_item)
-elif menu in ["Phase 1: Shortlisting", "Phase 2: Evaluation"]:
-    phase_num = 1 if "Phase 1" in menu else 2
-    render_review_form(engine, get_malaysia_time, phase_num, render_evaluation_fields, render_scoring_fields)
+elif menu == "Evaluation Dashboard":
+    render_review_form(engine, get_malaysia_time, render_scoring_fields)
