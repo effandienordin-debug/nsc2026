@@ -5,7 +5,7 @@ from sqlalchemy import text
 import os
 import base64
 
-# --- FUNGSI BANTUAN GAMBAR (Optional) ---
+# --- IMAGE HELPER FUNCTION (Optional) ---
 PHOTO_DIR = "evaluator_photos"
 os.makedirs(PHOTO_DIR, exist_ok=True)
 def get_local_image_base64(username):
@@ -18,17 +18,17 @@ def get_local_image_base64(username):
 
 
 # ==========================================
-# 1. DIALOG TAMBAH SECARA PUKAL (BULK ADD)
+# 1. BULK ADD DIALOGS
 # ==========================================
 @st.dialog("📚 Bulk Add Teams")
 def bulk_add_teams_dialog(engine):
-    st.markdown("**Format:** `Team Name, School, Group (A/B/C/D), Stake, Archive Link` (Satu baris setiap pasukan)")
-    raw_data = st.text_area("Tampal Senarai Pasukan Di Sini", height=200, 
+    st.markdown("**Format:** `Team Name, School, Group (A/B/C/D), Stake, Archive Link` (One per line)")
+    raw_data = st.text_area("Paste Team List Here", height=200, 
                             placeholder="T1, SMK Aminuddin Baki, A, LGM-Soil fertility, https://drive.link...")
     
     if st.button("Import Teams", type="primary"):
         if not raw_data.strip():
-            st.error("🚨 Sila tampal data terlebih dahulu.")
+            st.error("🚨 Please paste data first.")
             return
         lines = [line.strip() for line in raw_data.split('\n') if line.strip()]
         count = 0
@@ -55,21 +55,21 @@ def bulk_add_teams_dialog(engine):
         
         if count > 0:
             st.cache_resource.clear()
-            st.success(f"✅ Berjaya memasukkan {count} Pasukan!")
+            st.success(f"✅ Successfully imported {count} teams!")
         if duplicates:
-            st.warning(f"⚠️ Nama pasukan berikut sudah wujud dan dilangkau: {', '.join(duplicates)}")
+            st.warning(f"⚠️ The following team names already exist and were skipped: {', '.join(duplicates)}")
         if count > 0:
             time.sleep(1.5)
             st.rerun()
 
 @st.dialog("📚 Bulk Add Juries")
 def bulk_add_reviewers_dialog(engine, hash_password):
-    st.markdown("**Format:** `Full Name, Username, Password` (Satu baris setiap juri)")
-    raw_data = st.text_area("Tampal Senarai Juri Di Sini", height=200, placeholder="Dr. Rahmat, rahmat.d, Pass1234!")
+    st.markdown("**Format:** `Full Name, Username, Password` (One per line)")
+    raw_data = st.text_area("Paste Jury List Here", height=200, placeholder="Dr. Rahmat, rahmat.d, Pass1234!")
     
     if st.button("Import Juries", type="primary"):
         if not raw_data.strip():
-            st.error("🚨 Sila tampal data terlebih dahulu.")
+            st.error("🚨 Please paste data first.")
             return
         lines = [line.strip() for line in raw_data.split('\n') if line.strip()]
         count = 0
@@ -82,7 +82,7 @@ def bulk_add_reviewers_dialog(engine, hash_password):
                                  {"u": user.strip(), "n": name.strip(), "p": hash_password(pwd.strip())})
                     count += 1
         st.cache_resource.clear()
-        st.success(f"✅ Berjaya memasukkan {count} Juri!")
+        st.success(f"✅ Successfully imported {count} juries!")
         time.sleep(1)
         st.rerun()
 
@@ -100,10 +100,10 @@ def render_dashboard(engine):
     revs_df = pd.read_sql("SELECT username, full_name FROM juries", engine)
     
     if revs_df.empty:
-        st.info("ℹ️ Belum ada juri didaftarkan.")
+        st.info("ℹ️ No juries registered yet.")
         return
 
-    st.subheader("Status Juri")
+    st.subheader("Jury Status")
     reviews_df = pd.read_sql("SELECT jury_username, is_final FROM evaluations", engine)
     try:
         assign_df = pd.read_sql("SELECT team_name, jury_username FROM team_assignments", engine)
@@ -129,14 +129,14 @@ def render_dashboard(engine):
                     <img src="{img_data_uri}" style="width:60px; height:60px; border-radius:50%; object-fit:cover;" 
                     onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png';">
                     <p style="font-weight:bold; margin:5px 0 0 0; color:#333;">{f_name}</p>
-                    <p style="font-size:1.1em; font-weight:bold; color:#1E3A8A;">{done_count} / {assigned_count} Disiapkan</p>
+                    <p style="font-size:1.1em; font-weight:bold; color:#1E3A8A;">{done_count} / {assigned_count} Completed</p>
                 </div>
             """, unsafe_allow_html=True)
 
     st.divider()
     with st.expander("⚠️ Danger Zone: Save & Reset System"):
-        st.warning("Tindakan ini akan memadam SEMUA rekod (Markah dan Pasukan).")
-        if st.checkbox("Saya faham dan ingin reset.") and st.button("🗄️ Master Reset", type="primary"):
+        st.warning("This action will delete ALL records (Scores and Teams).")
+        if st.checkbox("I understand and want to reset.") and st.button("🗄️ Master Reset", type="primary"):
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM evaluations"))
                 conn.execute(text("DELETE FROM team_assignments"))
@@ -150,9 +150,9 @@ def render_dashboard(engine):
 # ==========================================
 def render_management(menu, engine, hash_password, delete_item):
     
-    # --- PENGURUSAN PASUKAN & PENGAGIHAN ---
+    # --- TEAM & ASSIGNMENT MANAGEMENT ---
     if menu == "Team & Assignment Management":
-        st.header("📋 Pengurusan Pasukan & Tugasan Juri")
+        st.header("📋 Team & Jury Assignment Management")
         
         col_btn1, col_btn2 = st.columns(2)
         if col_btn1.button("🔄 Sync System Data", use_container_width=True):
@@ -163,7 +163,7 @@ def render_management(menu, engine, hash_password, delete_item):
         st.divider()
         
         apps_df = pd.read_sql("SELECT id, name, school, group_category, stake FROM teams ORDER BY group_category ASC, name ASC", engine)
-        st.info(f"📊 **Jumlah Pasukan Didaftarkan:** {len(apps_df)}")
+        st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
 
         revs_df = pd.read_sql("SELECT username, full_name FROM juries", engine)
         try:
@@ -174,10 +174,10 @@ def render_management(menu, engine, hash_password, delete_item):
         jury_options = revs_df['username'].tolist() if not revs_df.empty else []
         jury_map = dict(zip(revs_df['username'], revs_df['full_name']))
         
-        # Paparkan mengikut Kumpulan (A, B, C, D)
+        # Display by Group (A, B, C, D)
         groups = apps_df['group_category'].unique()
         for g in sorted([x for x in groups if x]):
-            st.subheader(f"Kumpulan {g}")
+            st.subheader(f"Group {g}")
             group_df = apps_df[apps_df['group_category'] == g]
             
             for idx, row in group_df.iterrows():
@@ -191,27 +191,27 @@ def render_management(menu, engine, hash_password, delete_item):
                     current_assigned = assign_df[assign_df['team_name'] == t_name]['jury_username'].tolist()
                     current_assigned = [r for r in current_assigned if r in jury_options]
                     
-                    selected_juries = c2.multiselect("Assign Juri:", options=jury_options, default=current_assigned, 
+                    selected_juries = c2.multiselect("Assign Jury:", options=jury_options, default=current_assigned, 
                                                     format_func=lambda x: f"{jury_map.get(x, x)}", key=f"as_{t_name}")
                     
-                    if c2.button("💾 Simpan Juri", key=f"sv_{t_name}"):
+                    if c2.button("💾 Save Assignment", key=f"sv_{t_name}"):
                         with engine.begin() as conn:
                             conn.execute(text("DELETE FROM team_assignments WHERE team_name = :t"), {"t": t_name})
                             for jury in selected_juries:
                                 conn.execute(text("INSERT INTO team_assignments (team_name, jury_username) VALUES (:t, :j)"), 
                                              {"t": t_name, "j": jury})
                         st.cache_resource.clear()
-                        st.toast(f"Tugasan {t_name} disimpan!"); time.sleep(0.5); st.rerun()
+                        st.toast(f"Assignment for {t_name} saved!"); time.sleep(0.5); st.rerun()
                     
-                    if c3.button("🗑️ Padam", key=f"dl_{row['id']}"):
+                    if c3.button("🗑️ Delete", key=f"dl_{row['id']}"):
                         with engine.begin() as conn:
                             conn.execute(text("DELETE FROM team_assignments WHERE team_name = :t"), {"t": t_name})
                         delete_item("teams", row['id'])
 
 
-    # --- PENGURUSAN JURI ---
+    # --- JURY MANAGEMENT ---
     elif menu == "Jury Management":
-        st.header("👤 Pengurusan Juri")
+        st.header("👤 Jury Management")
         
         if st.button("📚 Bulk Add Juries"):
             bulk_add_reviewers_dialog(engine, hash_password)
@@ -225,23 +225,23 @@ def render_management(menu, engine, hash_password, delete_item):
                 c2.write(f"**{row['full_name']}**")
                 c2.caption(f"Username: {row['username']}")
                 
-                # Butang untuk buka balik akses jika Juri dah tertekan Final Submit
-                if c3.button("🔓 Buka Akses Penilaian", key=f"unlock_{row['id']}", use_container_width=True):
+                # Unlock button to reset 'is_final'
+                if c3.button("🔓 Unlock Evaluation", key=f"unlock_{row['id']}", use_container_width=True):
                     with engine.begin() as conn:
                         conn.execute(text("UPDATE evaluations SET is_final = FALSE WHERE jury_username = :u"), {"u": row['username']})
                     st.cache_resource.clear()
-                    st.toast(f"✅ Akses dibuka untuk {row['full_name']}!")
+                    st.toast(f"✅ Access unlocked for {row['full_name']}!")
                     time.sleep(0.5); st.rerun()
                 
                 if c4.button("🗑️", key=f"dr_{row['id']}", use_container_width=True): 
                     delete_item("juries", row['id'])
 
 
-    # --- PENGURUSAN ADMIN ---
+    # --- ADMIN MANAGEMENT ---
     elif menu == "User Management":
         st.header("🔑 System Admin Accounts")
         
-        with st.expander("➕ Tambah Admin"):
+        with st.expander("➕ Add Admin"):
             with st.form("add_admin", clear_on_submit=True):
                 u = st.text_input("Username*")
                 n = st.text_input("Full Name*")
@@ -253,9 +253,9 @@ def render_management(menu, engine, hash_password, delete_item):
                             conn.execute(text("INSERT INTO users (username, full_name, role, password_hash) VALUES (:u, :n, :r, :p) ON CONFLICT DO NOTHING"),
                                          {"u": u.strip(), "n": n.strip(), "r": r, "p": hash_password(p)})
                         st.cache_resource.clear()
-                        st.success("✅ Admin Ditambah!"); time.sleep(1); st.rerun()
+                        st.success("✅ Admin added successfully!"); time.sleep(1); st.rerun()
                     else:
-                        st.error("🚨 Username, Nama, dan Password wajib diisi.")
+                        st.error("🚨 Username, Name, and Password are required.")
 
         st.divider()
         df = pd.read_sql("SELECT id, username, full_name, role FROM users ORDER BY id ASC", engine)
