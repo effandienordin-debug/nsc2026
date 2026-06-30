@@ -19,18 +19,18 @@ def get_assigned_teams(_engine, username):
 def render_review_form(engine, get_malaysia_time, render_scoring_fields):
     st.markdown("## 📋 NSC 2026: State Level Judging")
     st.info("""
-    Penilaian Pasukan dibahagikan kepada dua komponen: **Scientific Report (50%)** dan **Video Submission (50%)**.
-    Sila rujuk pautan arkib (*Archive Link*) yang disertakan untuk dokumen pasukan.
+    The team evaluation consists of two components: **Scientific Report (50%)** and **Video Submission (50%)**.
+    Please refer to the provided *Archive Link* for the team's documents.
     """)
     st.divider()
     
     with st.container(border=True):
         col_icon, col_greet = st.columns([1, 10])
         col_icon.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=65)
-        col_greet.markdown(f"### Selamat kembali, {st.session_state.full_name}!")
+        col_greet.markdown(f"### Welcome back, {st.session_state.full_name}!")
         col_greet.caption(f"🔬 Logged in as: {st.session_state.username} | Role: Jury")
 
-    # Check status lock (jika juri dah buat FINAL SUBMIT)
+    # Check status lock (if jury has performed FINAL SUBMIT)
     is_locked = pd.read_sql(text("SELECT COUNT(*) FROM evaluations WHERE jury_username = :u AND is_final = TRUE"), 
                             engine, params={"u": st.session_state.username}).iloc[0,0] > 0
 
@@ -40,10 +40,10 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
         # ==========================================
         team_name = st.session_state.active_review_app
         
-        # Ambil detail pasukan
+        # Get team details
         team = pd.read_sql(text("SELECT * FROM teams WHERE name = :n"), engine, params={"n": team_name}).iloc[0]
         
-        # Ambil rekod penilaian sedia ada (jika ada draf)
+        # Get existing evaluation record (if any draft exists)
         rev = pd.read_sql(text("SELECT * FROM evaluations WHERE jury_username = :u AND team_name = :t"), 
                           engine, params={"u": st.session_state.username, "t": team_name})
         
@@ -54,31 +54,31 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             except:
                 prev_resp = {}
 
-        # Paparan Maklumat Pasukan
+        # Team Info Display
         with st.container(border=True):
-            st.subheader(f"Pasukan: {team_name}")
+            st.subheader(f"Team: {team_name}")
             col1, col2 = st.columns(2)
-            col1.markdown(f"**🏫 Sekolah:** {team['school'] if team['school'] else 'N/A'}")
-            col1.markdown(f"**🏷️ Group/Kategori:** {team['group_category'] if team['group_category'] else 'N/A'}")
+            col1.markdown(f"**🏫 School:** {team['school'] if team['school'] else 'N/A'}")
+            col1.markdown(f"**🏷️ Group/Category:** {team['group_category'] if team['group_category'] else 'N/A'}")
             col2.markdown(f"**🎯 Stake / Problem Statement:** {team['stake'] if team['stake'] else 'N/A'}")
             
             if team['archive_link']:
-                st.markdown(f"🔗 **[Klik Sini untuk Dokumen & Video Pasukan]({team['archive_link']})**")
+                st.markdown(f"🔗 **[Click here for Team Documents & Video]({team['archive_link']})**")
             else:
-                st.warning("⚠️ Tiada pautan dokumen (Archive Link) disertakan.")
+                st.warning("⚠️ No document link (Archive Link) provided.")
 
-        # Paparan Borang Penilaian
+        # Evaluation Form Display
         with st.form("eval_form"):
-            # Panggil fungsi borang dari form_components.py
+            # Call form function from form_components.py
             res = render_scoring_fields(prev_resp, rev.iloc[0].to_dict() if not rev.empty else {}, disabled=is_locked)
             
-            if not is_locked and st.form_submit_button("💾 Save Draft / Simpan", use_container_width=True, type="primary"):
+            if not is_locked and st.form_submit_button("💾 Save Draft", use_container_width=True, type="primary"):
                 
-                # Semak kelengkapan
+                # Check completion
                 is_incomplete = res["recommendation"] is None or not res["justification"].strip()
                 
                 if is_incomplete:
-                    st.error("⚠️ Sila buat pilihan Final Recommendation dan tulis Ulasan Tambahan sebelum menyimpan.")
+                    st.error("⚠️ Please select a Final Recommendation and provide an Additional Remark before saving.")
                 else:
                     with engine.begin() as conn:
                         if not rev.empty:
@@ -114,22 +114,22 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                             })
                     
                     st.cache_resource.clear() 
-                    st.toast(f"✅ Penilaian {team_name} disimpan!")
+                    st.toast(f"✅ Evaluation for {team_name} saved!")
                     st.session_state.active_review_app = None
                     st.rerun()
 
-        if st.button("⬅️ Kembali ke Senarai Pasukan", use_container_width=True):
+        if st.button("⬅️ Back to Team List", use_container_width=True):
             st.session_state.active_review_app = None
             st.rerun()
             
     else:
         # ==========================================
-        # --- GALLERY VIEW (SENARAI PASUKAN) ---
+        # --- GALLERY VIEW (TEAM LIST) ---
         # ==========================================
         teams = get_assigned_teams(engine, st.session_state.username)
         
         if teams.empty:
-            st.info("Tiada pasukan ditugaskan kepada anda buat masa ini.")
+            st.info("No teams are assigned to you at this moment.")
         else:
             rev_records = pd.read_sql(text("""
                 SELECT team_name, report_score, video_score, total_score, final_recommendation, overall_justification 
@@ -138,9 +138,9 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             
             reviews_lookup = rev_records.set_index('team_name').to_dict('index')
             
-            st.subheader("Senarai Pasukan Ditugaskan")
+            st.subheader("Assigned Team List")
             
-            # Grid 4 Column
+            # Grid 4 Columns
             for i in range(0, len(teams), 4):
                 cols = st.columns(4)
                 for j in range(4):
@@ -153,35 +153,35 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                                 
                                 if row['name'] in reviews_lookup:
                                     r_data = reviews_lookup[row['name']]
-                                    st.markdown(f"**Status:** :green[✅ Dinilai]")
+                                    st.markdown(f"**Status:** :green[✅ Evaluated]")
                                     st.markdown(f"**Rpt:** {r_data['report_score']:.1f} | **Vid:** {r_data['video_score']:.1f}")
                                     st.markdown(f"**Total:** :blue[{r_data['total_score']:.1f} / 100]")
                                 else:
-                                    st.markdown("**Status:** :orange[⏳ Menunggu]")
-                                    st.caption("Belum dinilai.")
+                                    st.markdown("**Status:** :orange[⏳ Pending]")
+                                    st.caption("Not yet evaluated.")
                                 
-                                if st.button("Nilai / Edit", key=f"go_{row['id']}", use_container_width=True, disabled=is_locked):
+                                if st.button("Evaluate / Edit", key=f"go_{row['id']}", use_container_width=True, disabled=is_locked):
                                     st.session_state.active_review_app = row['name']
                                     st.rerun()
 
-            # --- BUTANG RESET & FINAL SUBMIT ---
+            # --- RESET & FINAL SUBMIT BUTTONS ---
             if not is_locked and len(reviews_lookup) > 0:
                 st.divider()
                 c_reset, c_submit = st.columns(2)
                 
-                with c_reset.expander("⚠️ Kosongkan Draf"):
-                    st.warning("Amaran: Ini akan memadam SEMUA markah anda yang belum di-submit.")
+                with c_reset.expander("⚠️ Clear Drafts"):
+                    st.warning("Warning: This will delete ALL your unsubmitted evaluation drafts.")
                     if st.button("🗑️ Yes, Clear My Drafts", use_container_width=True):
                         with engine.begin() as conn:
                             conn.execute(text("DELETE FROM evaluations WHERE jury_username = :u AND is_final = FALSE"), 
                                          {"u": st.session_state.username})
                         st.cache_resource.clear()
-                        st.toast("✅ Semua draf anda telah dibersihkan!")
+                        st.toast("✅ All your drafts have been cleared!")
                         time.sleep(1)
                         st.rerun()
 
                 with c_submit:
-                    # Boleh Final Submit kalau semua pasukan dah dinilai
+                    # Final submit allowed if all assigned teams are evaluated
                     if len(reviews_lookup) >= len(teams):
                         if st.button(f"🚀 FINAL SUBMIT ALL REVIEWS", type="primary", use_container_width=True):
                             with engine.begin() as conn:
@@ -190,4 +190,4 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                             st.balloons()
                             st.rerun()
                     else:
-                        st.info(f"Sila lengkapkan semua {len(teams)} penilaian sebelum hantar secara rasmi.")
+                        st.info(f"Please complete all {len(teams)} evaluations before final submission.")
