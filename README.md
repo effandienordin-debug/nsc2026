@@ -1,4 +1,4 @@
-# RBS Secure Review System 🏥📊
+# NSC Review System 🏥📊
 
 A secure, Streamlit-based web application designed for managing and evaluating the Dr Ranjeet Bhagwan Singh Medical Research Grant applications.
 
