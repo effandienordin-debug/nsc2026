@@ -9,22 +9,22 @@ def render_scoring_fields(prev_resp=None, prev_data=None, disabled=False):
     if prev_resp is None: prev_resp = {}
     if prev_data is None: prev_data = {}
 
-    st.subheader("📊 Borang Penilaian NSC 2026")
-    st.info("💡 Sila pilih skala 1 (Sangat Lemah) hingga 5 (Sangat Baik). Sistem akan mengira wajaran markah secara automatik.")
+    st.subheader("📊 NSC 2026 Evaluation Form")
+    st.info("💡 Please select a scale from 1 (Very Weak) to 5 (Very Good). The system will calculate the weighted score automatically.")
 
-    # --- FUNGSI BANTUAN (HELPER) UNTUK RENDER SOALAN ---
+    # --- HELPER FUNCTION TO RENDER ROWS ---
     def render_rubric_row(q_key, label, full_marks, desc_dict):
-        st.markdown(f"**{label} (Maksimum: {full_marks} markah)**")
+        st.markdown(f"**{label} (Maximum: {full_marks} marks)**")
         
-        with st.expander("💡 Rujukan Skala (Klik untuk lihat detail)"):
+        with st.expander("💡 View Rubric Scale Details"):
             for scale, desc in desc_dict.items():
-                st.write(f"**Skala {scale}:** {desc}")
+                st.write(f"**Scale {scale}:** {desc}")
                 
-        # Dapatkan nilai skala sebelumnya (default 1 jika tiada)
+        # Get previous scale value (default to 1 if not present)
         current_scale = int(prev_resp.get(q_key, 1))
         
         selected_scale = st.radio(
-            "Pilih Skala:",
+            "Select Scale:",
             [1, 2, 3, 4, 5],
             index=[1, 2, 3, 4, 5].index(current_scale) if current_scale in [1, 2, 3, 4, 5] else 0,
             horizontal=True,
@@ -32,9 +32,9 @@ def render_scoring_fields(prev_resp=None, prev_data=None, disabled=False):
             disabled=disabled
         )
         
-        # Kira markah: (Skala pilihan / 5) * Markah Penuh
+        # Calculate score: (Selected Scale / 5) * Full Marks
         calculated_score = (selected_scale / 5.0) * full_marks
-        st.caption(f"Markah Dijana: **{calculated_score:.1f} / {full_marks}**")
+        st.caption(f"Calculated Score: **{calculated_score:.1f} / {full_marks}**")
         st.divider()
         
         return selected_scale, calculated_score
@@ -44,7 +44,7 @@ def render_scoring_fields(prev_resp=None, prev_data=None, disabled=False):
     total_video_score = 0
 
     # ==========================================
-    # BAHAGIAN A: SCIENTIFIC REPORT (50%)
+    # PART A: SCIENTIFIC REPORT (50%)
     # ==========================================
     st.markdown("### A. Scientific Report (50%)")
     
@@ -95,7 +95,7 @@ def render_scoring_fields(prev_resp=None, prev_data=None, disabled=False):
 
 
     # ==========================================
-    # BAHAGIAN B: VIDEO SUBMISSION (50%)
+    # PART B: VIDEO SUBMISSION (50%)
     # ==========================================
     st.markdown("### B. Video Submission (50%)")
     
@@ -173,25 +173,25 @@ def render_scoring_fields(prev_resp=None, prev_data=None, disabled=False):
 
 
     # ==========================================
-    # PENGIRAAN KESELURUHAN & RUMUSAN
+    # FINAL CALCULATION & SUMMARY
     # ==========================================
     grand_total = total_report_score + total_video_score
     
     st.markdown(f"<h3 style='text-align: right; color: #1E3A8A;'>🎯 Total Score: {grand_total:.1f} / 100</h3>", unsafe_allow_html=True)
     st.divider()
 
-    st.subheader("Rumusan Penilaian Akhir")
+    st.subheader("Final Evaluation Summary")
     rec_val = prev_data.get('final_recommendation')
     recommendation = st.radio(
-        "Final Recommendation (Sokong/Tidak Sokong) *", 
+        "Final Recommendation (Support/Do Not Support) *", 
         ["Yes", "No"], 
         index=(0 if rec_val in ["Yes", "YES"] else (1 if rec_val in ["No", "NO"] else None)), 
         horizontal=True, 
         disabled=disabled
     )
-    justification = st.text_area("Ulasan Tambahan (Wajib) *", value=prev_data.get('overall_justification', ""), disabled=disabled, placeholder="Berikan sedikit komen mengenai pasukan ini...")
+    justification = st.text_area("Additional Remarks (Required) *", value=prev_data.get('overall_justification', ""), disabled=disabled, placeholder="Provide some comments about this team...")
     
-    # Return data untuk dihantar ke database (database_utils.py)
+    # Return data to be saved to database
     return {
         "responses": responses, 
         "report_score": total_report_score,
