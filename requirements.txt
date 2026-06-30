@@ -1,0 +1,11 @@
+streamlit
+pandas
+bcrypt
+SQLAlchemy
+psycopg2-binary
+plotly
+selenium
+webdriver-manager
+extra-streamlit-components
+supabase
+streamlit_autorefresh
