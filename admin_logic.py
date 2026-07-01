@@ -22,7 +22,7 @@ def get_local_image_base64(username):
 # ==========================================
 @st.dialog("📚 Bulk Add Teams")
 def bulk_add_teams_dialog(engine):
-    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), State, Stake, Archive Link` (One per line)")
+    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), State, PS, Archive Link` (One per line)")
     raw_data = st.text_area("Paste Team List Here", height=200, 
                             placeholder="T1, SMK Aminuddin Baki, A, Selangor, Food Waste, https://drive.link...")
     
@@ -175,7 +175,7 @@ def render_management(menu, engine, hash_password, delete_item):
                 t_school = st.text_input("School")
                 t_group = st.selectbox("Group*", ["A", "B", "C", "D"])
                 t_state = st.text_input("State")
-                t_stake = st.text_input("Stake / Problem Statement")
+                t_stake = st.text_input("Problem Statement")
                 t_link = st.text_input("Archive Link")
                 
                 if st.form_submit_button("Save Team"):
