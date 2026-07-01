@@ -7,12 +7,11 @@ from sqlalchemy import text
 # --- 1. CACHED DATA FETCHING ---
 @st.cache_resource(ttl=60)
 def get_assigned_teams(_engine, username):
-    # Logik Baharu: Juri hanya tarik pasukan berdasarkan Kumpulan mereka
     query = text("""
         SELECT t.* FROM teams t
         JOIN group_assignments ga ON t.group_category = ga.group_category
         WHERE ga.jury_username = :u
-        ORDER BY t.name ASC
+        ORDER BY t.team_id ASC
     """)
     df = pd.read_sql(query, _engine, params={"u": username})
     return df
@@ -32,7 +31,6 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
         col_greet.markdown(f"### Welcome back, {st.session_state.full_name}!")
         col_greet.caption(f"🔬 Logged in as: {st.session_state.username} | Role: Jury")
 
-    # Check status lock (if jury has performed FINAL SUBMIT)
     is_locked = pd.read_sql(text("SELECT COUNT(*) FROM evaluations WHERE jury_username = :u AND is_final = TRUE"), 
                             engine, params={"u": st.session_state.username}).iloc[0,0] > 0
 
@@ -40,14 +38,12 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
         # ==========================================
         # --- INDIVIDUAL TEAM REVIEW PAGE ---
         # ==========================================
-        team_name = st.session_state.active_review_app
+        t_id = st.session_state.active_review_app
         
-        # Get team details
-        team = pd.read_sql(text("SELECT * FROM teams WHERE name = :n"), engine, params={"n": team_name}).iloc[0]
+        team = pd.read_sql(text("SELECT * FROM teams WHERE team_id = :n"), engine, params={"n": t_id}).iloc[0]
         
-        # Get existing evaluation record (if any draft exists)
-        rev = pd.read_sql(text("SELECT * FROM evaluations WHERE jury_username = :u AND team_name = :t"), 
-                          engine, params={"u": st.session_state.username, "t": team_name})
+        rev = pd.read_sql(text("SELECT * FROM evaluations WHERE jury_username = :u AND team_id = :t"), 
+                          engine, params={"u": st.session_state.username, "t": t_id})
         
         prev_resp = {} 
         if not rev.empty and rev.iloc[0]['responses']:
@@ -56,9 +52,8 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             except:
                 prev_resp = {}
 
-        # Team Info Display
         with st.container(border=True):
-            st.subheader(f"Team: {team_name}")
+            st.subheader(f"Team ID: {t_id}")
             col1, col2 = st.columns(2)
             col1.markdown(f"**🏫 School:** {team['school'] if team['school'] else 'N/A'}")
             col1.markdown(f"**🏷️ Group/Category:** {team['group_category'] if team['group_category'] else 'N/A'}")
@@ -69,14 +64,10 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             else:
                 st.warning("⚠️ No document link (Archive Link) provided.")
 
-        # Evaluation Form Display
         with st.form("eval_form"):
-            # Call form function from form_components.py
             res = render_scoring_fields(prev_resp, rev.iloc[0].to_dict() if not rev.empty else {}, disabled=is_locked)
             
             if not is_locked and st.form_submit_button("💾 Save Draft", use_container_width=True, type="primary"):
-                
-                # Check completion
                 is_incomplete = res["recommendation"] is None or not res["justification"].strip()
                 
                 if is_incomplete:
@@ -101,11 +92,11 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                             })
                         else:
                             conn.execute(text("""
-                                INSERT INTO evaluations (jury_username, team_name, responses, report_score, video_score, total_score, final_recommendation, overall_justification, submitted_at, updated_at) 
-                                VALUES (:u, :t_name, :r, :rs, :vs, :ts, :fr, :oj, :t, :t)
+                                INSERT INTO evaluations (jury_username, team_id, responses, report_score, video_score, total_score, final_recommendation, overall_justification, submitted_at, updated_at) 
+                                VALUES (:u, :t_id, :r, :rs, :vs, :ts, :fr, :oj, :t, :t)
                             """), {
                                 "u": st.session_state.username, 
-                                "t_name": team_name, 
+                                "t_id": t_id, 
                                 "r": json.dumps(res["responses"]),
                                 "rs": res["report_score"], 
                                 "vs": res["video_score"], 
@@ -116,7 +107,7 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                             })
                     
                     st.cache_resource.clear() 
-                    st.toast(f"✅ Evaluation for {team_name} saved!")
+                    st.toast(f"✅ Evaluation for {t_id} saved!")
                     st.session_state.active_review_app = None
                     st.rerun()
 
@@ -134,15 +125,14 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             st.info("No teams are assigned to you at this moment.")
         else:
             rev_records = pd.read_sql(text("""
-                SELECT team_name, report_score, video_score, total_score, final_recommendation, overall_justification 
+                SELECT team_id, report_score, video_score, total_score, final_recommendation, overall_justification 
                 FROM evaluations WHERE jury_username = :u
             """), engine, params={"u": st.session_state.username})
             
-            reviews_lookup = rev_records.set_index('team_name').to_dict('index')
+            reviews_lookup = rev_records.set_index('team_id').to_dict('index')
             
             st.subheader("Assigned Team List")
             
-            # Grid 4 Columns
             for i in range(0, len(teams), 4):
                 cols = st.columns(4)
                 for j in range(4):
@@ -150,11 +140,11 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                         row = teams.iloc[i+j]
                         with cols[j]:
                             with st.container(border=True):
-                                st.markdown(f"<h4 style='text-align:center;'>{row['name']}</h4>", unsafe_allow_html=True)
+                                st.markdown(f"<h4 style='text-align:center;'>{row['team_id']}</h4>", unsafe_allow_html=True)
                                 st.caption(f"🏫 {row['school'] if row['school'] else 'N/A'}")
                                 
-                                if row['name'] in reviews_lookup:
-                                    r_data = reviews_lookup[row['name']]
+                                if row['team_id'] in reviews_lookup:
+                                    r_data = reviews_lookup[row['team_id']]
                                     st.markdown(f"**Status:** :green[✅ Evaluated]")
                                     st.markdown(f"**Rpt:** {r_data['report_score']:.1f} | **Vid:** {r_data['video_score']:.1f}")
                                     st.markdown(f"**Total:** :blue[{r_data['total_score']:.1f} / 100]")
@@ -163,10 +153,9 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                                     st.caption("Not yet evaluated.")
                                 
                                 if st.button("Evaluate / Edit", key=f"go_{row['id']}", use_container_width=True, disabled=is_locked):
-                                    st.session_state.active_review_app = row['name']
+                                    st.session_state.active_review_app = row['team_id']
                                     st.rerun()
 
-            # --- RESET & FINAL SUBMIT BUTTONS ---
             if not is_locked and len(reviews_lookup) > 0:
                 st.divider()
                 c_reset, c_submit = st.columns(2)
@@ -183,7 +172,6 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
                         st.rerun()
 
                 with c_submit:
-                    # Final submit allowed if all assigned teams are evaluated
                     if len(reviews_lookup) >= len(teams):
                         if st.button(f"🚀 FINAL SUBMIT ALL REVIEWS", type="primary", use_container_width=True):
                             with engine.begin() as conn:
