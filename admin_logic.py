@@ -16,6 +16,7 @@ def get_local_image_base64(username):
             return f"data:image/png;base64,{b64}"
     return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
+
 # ==========================================
 # 1. BULK ADD DIALOGS
 # ==========================================
@@ -85,6 +86,7 @@ def bulk_add_reviewers_dialog(engine, hash_password):
         time.sleep(1)
         st.rerun()
 
+
 # ==========================================
 # 2. RENDER DASHBOARD (LIVE TRACKER)
 # ==========================================
@@ -104,7 +106,6 @@ def render_dashboard(engine):
     st.subheader("Jury Status")
     reviews_df = pd.read_sql("SELECT jury_username, is_final FROM evaluations", engine)
     
-    # Kira berapa total team yang diassign kpd jury berdasarkan group mereka
     try:
         assign_query = text("""
             SELECT ga.jury_username, COUNT(t.id) as assigned_count
@@ -152,6 +153,7 @@ def render_dashboard(engine):
             st.cache_resource.clear()
             st.success("✅ System Reset!"); time.sleep(2); st.rerun()
 
+
 # ==========================================
 # 3. RENDER MANAGEMENT MENUS
 # ==========================================
@@ -166,6 +168,35 @@ def render_management(menu, engine, hash_password, delete_item):
             st.cache_resource.clear(); st.rerun()
         if col_btn2.button("📚 Bulk Add Teams", use_container_width=True):
             bulk_add_teams_dialog(engine)
+            
+        # ADD SINGLE TEAM FORM
+        with st.expander("➕ Add Single Team"):
+            with st.form("add_single_team", clear_on_submit=True):
+                t_name = st.text_input("Team Name*")
+                t_school = st.text_input("School")
+                t_group = st.selectbox("Group*", ["A", "B", "C", "D"])
+                t_stake = st.text_input("Stake / Problem Statement")
+                t_link = st.text_input("Archive Link")
+                
+                if st.form_submit_button("Save Team"):
+                    if t_name and t_group:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO teams (name, school, group_category, stake, archive_link) 
+                                    VALUES (:n, :s, :g, :stk, :l)
+                                """), {"n": t_name.strip(), "s": t_school.strip(), "g": t_group, "stk": t_stake.strip(), "l": t_link.strip()})
+                            st.cache_resource.clear()
+                            st.success(f"✅ Team '{t_name}' added successfully!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                                st.error(f"🚨 Error: Team '{t_name}' already exists.")
+                            else:
+                                st.error(f"❌ System Error: {e}")
+                    else:
+                        st.error("🚨 Team Name and Group are required.")
             
         st.divider()
         
@@ -198,7 +229,6 @@ def render_management(menu, engine, hash_password, delete_item):
             jury_options = revs_df['username'].tolist() if not revs_df.empty else []
             jury_map = dict(zip(revs_df['username'], revs_df['full_name']))
             
-            # Tentukan senarai Kumpulan (A, B, C, D)
             try:
                 groups = pd.read_sql("SELECT DISTINCT group_category FROM teams WHERE group_category IS NOT NULL", engine)['group_category'].tolist()
             except:
@@ -231,12 +261,43 @@ def render_management(menu, engine, hash_password, delete_item):
                         st.cache_resource.clear()
                         st.toast(f"✅ Assignment for Group {g} saved!"); time.sleep(0.5); st.rerun()
 
+
     # --- JURY MANAGEMENT ---
     elif menu == "Jury Management":
         st.header("👤 Jury Management")
         
-        if st.button("📚 Bulk Add Juries"):
+        col_j1, col_j2 = st.columns(2)
+        if col_j1.button("🔄 Sync Jury Data", use_container_width=True):
+            st.cache_resource.clear(); st.rerun()
+        if col_j2.button("📚 Bulk Add Juries", use_container_width=True):
             bulk_add_reviewers_dialog(engine, hash_password)
+
+        # ADD SINGLE JURY FORM
+        with st.expander("➕ Add Single Jury"):
+            with st.form("add_single_jury", clear_on_submit=True):
+                j_name = st.text_input("Full Name*")
+                j_user = st.text_input("Username*")
+                j_pass = st.text_input("Password*", type="password")
+                
+                if st.form_submit_button("Save Jury"):
+                    if j_name and j_user and j_pass:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO juries (username, full_name, password_hash) 
+                                    VALUES (:u, :n, :p)
+                                """), {"u": j_user.strip(), "n": j_name.strip(), "p": hash_password(j_pass)})
+                            st.cache_resource.clear()
+                            st.success(f"✅ Jury '{j_name}' added successfully!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                                st.error(f"🚨 Error: Username '{j_user}' already exists.")
+                            else:
+                                st.error(f"❌ System Error: {e}")
+                    else:
+                        st.error("🚨 All fields are required.")
             
         st.divider()
         df = pd.read_sql("SELECT id, username, full_name FROM juries ORDER BY id ASC", engine)
@@ -256,6 +317,7 @@ def render_management(menu, engine, hash_password, delete_item):
                 
                 if c4.button("🗑️", key=f"dr_{row['id']}", use_container_width=True): 
                     delete_item("juries", row['id'])
+
 
     # --- ADMIN MANAGEMENT ---
     elif menu == "User Management":
