@@ -56,6 +56,7 @@ def render_review_form(engine, get_malaysia_time, render_scoring_fields):
             st.subheader(f"Team ID: {t_id}")
             col1, col2 = st.columns(2)
             col1.markdown(f"**🏫 School:** {team['school'] if team['school'] else 'N/A'}")
+            col1.markdown(f"**📍 State:** {team['state'] if team['state'] else 'N/A'}")
             col1.markdown(f"**🏷️ Group/Category:** {team['group_category'] if team['group_category'] else 'N/A'}")
             col2.markdown(f"**🎯 Stake / Problem Statement:** {team['stake'] if team['stake'] else 'N/A'}")
             
