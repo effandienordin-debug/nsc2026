@@ -16,7 +16,6 @@ def get_local_image_base64(username):
             return f"data:image/png;base64,{b64}"
     return "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
-
 # ==========================================
 # 1. BULK ADD DIALOGS
 # ==========================================
@@ -86,7 +85,6 @@ def bulk_add_reviewers_dialog(engine, hash_password):
         time.sleep(1)
         st.rerun()
 
-
 # ==========================================
 # 2. RENDER DASHBOARD (LIVE TRACKER)
 # ==========================================
@@ -105,16 +103,26 @@ def render_dashboard(engine):
 
     st.subheader("Jury Status")
     reviews_df = pd.read_sql("SELECT jury_username, is_final FROM evaluations", engine)
+    
+    # Kira berapa total team yang diassign kpd jury berdasarkan group mereka
     try:
-        assign_df = pd.read_sql("SELECT team_name, jury_username FROM team_assignments", engine)
+        assign_query = text("""
+            SELECT ga.jury_username, COUNT(t.id) as assigned_count
+            FROM group_assignments ga
+            JOIN teams t ON ga.group_category = t.group_category
+            GROUP BY ga.jury_username
+        """)
+        assign_counts_df = pd.read_sql(assign_query, engine)
+        assign_lookup = dict(zip(assign_counts_df['jury_username'], assign_counts_df['assigned_count']))
     except:
-        assign_df = pd.DataFrame(columns=['team_name', 'jury_username'])
+        assign_lookup = {}
         
     cols = st.columns(4)
     for i, row in revs_df.iterrows():
         u_name = row['username']
         f_name = row['full_name']
-        assigned_count = len(assign_df[assign_df['jury_username'] == u_name])
+        
+        assigned_count = assign_lookup.get(u_name, 0)
         done_count = len(reviews_df[(reviews_df['jury_username'] == u_name)])
         
         is_done = (done_count >= assigned_count) and assigned_count > 0
@@ -135,24 +143,23 @@ def render_dashboard(engine):
 
     st.divider()
     with st.expander("⚠️ Danger Zone: Save & Reset System"):
-        st.warning("This action will delete ALL records (Scores and Teams).")
+        st.warning("This action will delete ALL records (Scores, Teams, and Assignments).")
         if st.checkbox("I understand and want to reset.") and st.button("🗄️ Master Reset", type="primary"):
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM evaluations"))
-                conn.execute(text("DELETE FROM team_assignments"))
+                conn.execute(text("DELETE FROM group_assignments"))
                 conn.execute(text("DELETE FROM teams"))
             st.cache_resource.clear()
             st.success("✅ System Reset!"); time.sleep(2); st.rerun()
-
 
 # ==========================================
 # 3. RENDER MANAGEMENT MENUS
 # ==========================================
 def render_management(menu, engine, hash_password, delete_item):
     
-    # --- TEAM & ASSIGNMENT MANAGEMENT ---
+    # --- TEAM & GROUP ASSIGNMENT MANAGEMENT ---
     if menu == "Team & Assignment Management":
-        st.header("📋 Team & Jury Assignment Management")
+        st.header("📋 Team & Group Assignment Management")
         
         col_btn1, col_btn2 = st.columns(2)
         if col_btn1.button("🔄 Sync System Data", use_container_width=True):
@@ -162,52 +169,67 @@ def render_management(menu, engine, hash_password, delete_item):
             
         st.divider()
         
-        apps_df = pd.read_sql("SELECT id, name, school, group_category, stake FROM teams ORDER BY group_category ASC, name ASC", engine)
-        st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
-
-        revs_df = pd.read_sql("SELECT username, full_name FROM juries", engine)
-        try:
-            assign_df = pd.read_sql("SELECT team_name, jury_username FROM team_assignments", engine)
-        except:
-            assign_df = pd.DataFrame(columns=['team_name', 'jury_username'])
-            
-        jury_options = revs_df['username'].tolist() if not revs_df.empty else []
-        jury_map = dict(zip(revs_df['username'], revs_df['full_name']))
+        tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
         
-        # Display by Group (A, B, C, D)
-        groups = apps_df['group_category'].unique()
-        for g in sorted([x for x in groups if x]):
-            st.subheader(f"Group {g}")
-            group_df = apps_df[apps_df['group_category'] == g]
+        # --- TAB 1: TEAM LIST ---
+        with tab1:
+            apps_df = pd.read_sql("SELECT id, name, school, group_category, stake FROM teams ORDER BY group_category ASC, name ASC", engine)
+            st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
             
-            for idx, row in group_df.iterrows():
-                t_name = row['name']
+            st.dataframe(apps_df, use_container_width=True, hide_index=True)
+            
+            st.write("Delete a Team:")
+            del_id = st.number_input("Enter Team ID to delete:", min_value=0, step=1)
+            if st.button("🗑️ Delete Team"):
+                if del_id > 0:
+                    delete_item("teams", del_id)
+
+        # --- TAB 2: GROUP ASSIGNMENT ---
+        with tab2:
+            st.markdown("### Assign Juries to Groups")
+            st.caption("Juries assigned to a group will automatically evaluate ALL teams within that group.")
+            
+            revs_df = pd.read_sql("SELECT username, full_name FROM juries", engine)
+            try:
+                assign_df = pd.read_sql("SELECT group_category, jury_username FROM group_assignments", engine)
+            except:
+                assign_df = pd.DataFrame(columns=['group_category', 'jury_username'])
+                
+            jury_options = revs_df['username'].tolist() if not revs_df.empty else []
+            jury_map = dict(zip(revs_df['username'], revs_df['full_name']))
+            
+            # Tentukan senarai Kumpulan (A, B, C, D)
+            try:
+                groups = pd.read_sql("SELECT DISTINCT group_category FROM teams WHERE group_category IS NOT NULL", engine)['group_category'].tolist()
+            except:
+                groups = ["A", "B", "C", "D"]
+                
+            if not groups:
+                groups = ["A", "B", "C", "D"]
+
+            for g in sorted(groups):
                 with st.container(border=True):
-                    c1, c2, c3 = st.columns([3, 4, 1])
-                    c1.write(f"**{t_name}**")
-                    c1.caption(f"🏫 {row['school']}")
-                    c1.caption(f"🎯 {row['stake']}")
+                    st.subheader(f"Group {g}")
                     
-                    current_assigned = assign_df[assign_df['team_name'] == t_name]['jury_username'].tolist()
+                    current_assigned = assign_df[assign_df['group_category'] == g]['jury_username'].tolist()
                     current_assigned = [r for r in current_assigned if r in jury_options]
                     
-                    selected_juries = c2.multiselect("Assign Jury:", options=jury_options, default=current_assigned, 
-                                                    format_func=lambda x: f"{jury_map.get(x, x)}", key=f"as_{t_name}")
+                    selected_juries = st.multiselect(
+                        f"Assign Juries for Group {g}:", 
+                        options=jury_options, 
+                        default=current_assigned, 
+                        format_func=lambda x: f"{jury_map.get(x, x)}", 
+                        key=f"grp_{g}"
+                    )
                     
-                    if c2.button("💾 Save Assignment", key=f"sv_{t_name}"):
+                    if st.button("💾 Save Group Assignment", key=f"sv_grp_{g}"):
                         with engine.begin() as conn:
-                            conn.execute(text("DELETE FROM team_assignments WHERE team_name = :t"), {"t": t_name})
+                            conn.execute(text("DELETE FROM group_assignments WHERE group_category = :g"), {"g": g})
                             for jury in selected_juries:
-                                conn.execute(text("INSERT INTO team_assignments (team_name, jury_username) VALUES (:t, :j)"), 
-                                             {"t": t_name, "j": jury})
+                                conn.execute(text("INSERT INTO group_assignments (group_category, jury_username) VALUES (:g, :j)"), 
+                                             {"g": g, "j": jury})
                         st.cache_resource.clear()
-                        st.toast(f"Assignment for {t_name} saved!"); time.sleep(0.5); st.rerun()
-                    
-                    if c3.button("🗑️ Delete", key=f"dl_{row['id']}"):
-                        with engine.begin() as conn:
-                            conn.execute(text("DELETE FROM team_assignments WHERE team_name = :t"), {"t": t_name})
-                        delete_item("teams", row['id'])
-
+                        st.toast(f"✅ Assignment for Group {g} saved!"); time.sleep(0.5); st.rerun()
 
     # --- JURY MANAGEMENT ---
     elif menu == "Jury Management":
@@ -225,7 +247,6 @@ def render_management(menu, engine, hash_password, delete_item):
                 c2.write(f"**{row['full_name']}**")
                 c2.caption(f"Username: {row['username']}")
                 
-                # Unlock button to reset 'is_final'
                 if c3.button("🔓 Unlock Evaluation", key=f"unlock_{row['id']}", use_container_width=True):
                     with engine.begin() as conn:
                         conn.execute(text("UPDATE evaluations SET is_final = FALSE WHERE jury_username = :u"), {"u": row['username']})
@@ -235,7 +256,6 @@ def render_management(menu, engine, hash_password, delete_item):
                 
                 if c4.button("🗑️", key=f"dr_{row['id']}", use_container_width=True): 
                     delete_item("juries", row['id'])
-
 
     # --- ADMIN MANAGEMENT ---
     elif menu == "User Management":
