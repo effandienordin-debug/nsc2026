@@ -4,10 +4,8 @@ import json
 from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta, timezone
 
-# --- PENGGUNAAN URL SUPABASE ---
 DB_URL = st.secrets["DATABASE_URL"]
 
-# Tambah parameter pooler khusus untuk Supabase (jika guna port 6543)
 @st.cache_resource
 def get_engine():
     return create_engine(
@@ -36,21 +34,15 @@ def delete_item(table, item_id):
     with engine.begin() as conn:
         conn.execute(text(f"DELETE FROM {table} WHERE id = :id"), {"id": item_id})
     st.cache_resource.clear()
-    st.toast(f"Item berjaya dipadam dari {table}")
+    st.toast(f"Item successfully deleted from {table}")
     st.rerun()
 
-# --- INIT DATABASE STRUKTUR NSC 2026 ---
 @st.cache_resource
 def init_db():
     with engine.begin() as conn:
-        # 1. Admin Users
         conn.execute(text("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE, full_name VARCHAR(255), password_hash VARCHAR(255), role VARCHAR(50))"))
-        
-        # 2. Juries (Ganti nama Reviewers)
         conn.execute(text("CREATE TABLE IF NOT EXISTS juries (id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE, full_name VARCHAR(255), password_hash VARCHAR(255))"))
         
-        # 3. Teams (100 Teams - Ganti Applicants)
-        # Menambah ruangan school, stake, group_category (A, B, C, D) dan archive_link
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS teams (
                 id SERIAL PRIMARY KEY, 
@@ -62,13 +54,12 @@ def init_db():
             )
         """))
         
-        # 4. Evaluations (Ganti Reviews - Simpan rekod markah)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS evaluations (
                 id SERIAL PRIMARY KEY, 
                 jury_username VARCHAR(255), 
                 team_name VARCHAR(255), 
-                responses TEXT,  -- Simpan JSON skala 1-5 yang juri klik
+                responses TEXT,  
                 report_score FLOAT DEFAULT 0, 
                 video_score FLOAT DEFAULT 0,
                 total_score FLOAT DEFAULT 0,
@@ -80,27 +71,16 @@ def init_db():
             )
         """))
         
-        # 5. Assignments (Juri ditugaskan ke Pasukan mana)
+        # --- STRUKTUR BARU: GROUP ASSIGNMENTS ---
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS team_assignments (
+            CREATE TABLE IF NOT EXISTS group_assignments (
                 id SERIAL PRIMARY KEY,
-                team_name VARCHAR(255),
+                group_category VARCHAR(10),
                 jury_username VARCHAR(255),
-                UNIQUE(team_name, jury_username)
+                UNIQUE(group_category, jury_username)
             )
         """))
-
-        # Tambah dalam init_db()
-conn.execute(text("""
-    CREATE TABLE IF NOT EXISTS group_assignments (
-        id SERIAL PRIMARY KEY,
-        group_category VARCHAR(10), -- A, B, C, atau D
-        jury_username VARCHAR(255),
-        UNIQUE(group_category, jury_username)
-    )
-"""))
         
-        # Masukkan Master Admin default jika belum ada
         res = conn.execute(text("SELECT COUNT(*) FROM users")).fetchone()[0]
         if res == 0:
             conn.execute(text("INSERT INTO users (username, full_name, role, password_hash) VALUES ('admin', 'Master Admin', 'Admin', :pw)"), 
