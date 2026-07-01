@@ -278,7 +278,7 @@ with tab1:
                         st.cache_resource.clear()
                         st.toast(f"✅ Assignment for Group {g} saved!"); time.sleep(0.5); st.rerun()
 
-    elif menu == "Jury Management":
+     elif menu == "Jury Management":
         st.header("👤 Jury Management")
         
         col_j1, col_j2 = st.columns(2)
