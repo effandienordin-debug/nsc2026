@@ -22,7 +22,7 @@ def get_local_image_base64(username):
 # ==========================================
 @st.dialog("📚 Bulk Add Teams")
 def bulk_add_teams_dialog(engine):
-    st.markdown("**Format:** `Team Name, School, Group (A/B/C/D), Stake, Archive Link` (One per line)")
+    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), Stake, Archive Link` (One per line)")
     raw_data = st.text_area("Paste Team List Here", height=200, 
                             placeholder="T1, SMK Aminuddin Baki, A, LGM-Soil fertility, https://drive.link...")
     
