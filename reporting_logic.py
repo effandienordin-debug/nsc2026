@@ -20,12 +20,12 @@ def render_reporting(engine):
     query = """
         SELECT 
             t.group_category as "Group",
-            e.team_name as "Team Name",
+            e.team_id as "Team ID",
             t.school as "School",
             e.jury_username,
             e.total_score
         FROM evaluations e
-        JOIN teams t ON e.team_name = t.name
+        JOIN teams t ON e.team_id = t.team_id
         WHERE e.is_final = TRUE
     """
     
@@ -42,13 +42,13 @@ def render_reporting(engine):
         st.subheader("📊 Jury Scoring Pivot Table")
         
         pivot_df = df.pivot_table(
-            index=["Group", "Team Name", "School"], 
+            index=["Group", "Team ID", "School"], 
             columns="jury_username", 
             values="total_score",
             aggfunc='mean'
         ).reset_index()
 
-        jury_cols = [col for col in pivot_df.columns if col not in ["Group", "Team Name", "School"]]
+        jury_cols = [col for col in pivot_df.columns if col not in ["Group", "Team ID", "School"]]
         pivot_df['Average Overall'] = pivot_df[jury_cols].mean(axis=1).round(2)
         pivot_df = pivot_df.sort_values(by=["Group", "Average Overall"], ascending=[True, False])
 
@@ -59,10 +59,8 @@ def render_reporting(engine):
         # --- DOWNLOAD & PRINT SECTION ---
         col1, col2, col3 = st.columns(3)
         
-        # 1. Print (PDF)
         col1.button("🖨️ Print Report (PDF)", on_click=lambda: st.components.v1.html("<script>window.parent.print();</script>", height=0), use_container_width=True, type="primary")
 
-        # 2. Excel Download
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             pivot_df.to_excel(writer, index=False, sheet_name='Scoring Report')
@@ -75,7 +73,6 @@ def render_reporting(engine):
             use_container_width=True
         )
 
-        # 3. CSV Download
         col3.download_button(
             label="📄 Download (CSV)",
             data=pivot_df.to_csv(index=False),
