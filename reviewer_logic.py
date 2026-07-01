@@ -7,12 +7,12 @@ from sqlalchemy import text
 # --- 1. CACHED DATA FETCHING ---
 @st.cache_resource(ttl=60)
 def get_assigned_teams(_engine, username):
-    # Cari dulu kumpulan apa juri ni pegang
-    # Kemudian tarik semua pasukan dalam kumpulan tersebut
+    # Logik Baharu: Juri hanya tarik pasukan berdasarkan Kumpulan mereka
     query = text("""
         SELECT t.* FROM teams t
         JOIN group_assignments ga ON t.group_category = ga.group_category
         WHERE ga.jury_username = :u
+        ORDER BY t.name ASC
     """)
     df = pd.read_sql(query, _engine, params={"u": username})
     return df
