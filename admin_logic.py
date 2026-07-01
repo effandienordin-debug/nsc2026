@@ -201,7 +201,6 @@ def render_management(menu, engine, hash_password, delete_item):
         st.divider()
         
         tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
-        
         with tab1:
     apps_df = pd.read_sql("SELECT * FROM teams ORDER BY group_category ASC, team_id ASC", engine)
     
