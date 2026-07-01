@@ -37,27 +37,27 @@ def bulk_add_teams_dialog(engine):
             for line in lines:
                 parts = [p.strip() for p in line.split(',')]
                 if len(parts) >= 1:
-                    t_name = parts[0]
-                    t_school = parts[1] if len(parts) > 1 else None
-                    t_group = parts[2].upper() if len(parts) > 2 else None
-                    t_stake = parts[3] if len(parts) > 3 else None
-                    t_link = parts[4] if len(parts) > 4 else None
+                    t_id = parts[0].strip()
+                    t_school = parts[1].strip() if len(parts) > 1 else None
+                    t_group = parts[2].strip().upper() if len(parts) > 2 else None
+                    t_stake = parts[3].strip() if len(parts) > 3 else None
+                    t_link = parts[4].strip() if len(parts) > 4 else None
                     
-                    check = conn.execute(text("SELECT id FROM teams WHERE name = :n"), {"n": t_name}).fetchone()
+                    check = conn.execute(text("SELECT id FROM teams WHERE team_id = :n"), {"n": t_id}).fetchone()
                     if check:
-                        duplicates.append(t_name)
+                        duplicates.append(t_id)
                     else:
                         conn.execute(text("""
-                            INSERT INTO teams (name, school, group_category, stake, archive_link) 
+                            INSERT INTO teams (team_id, school, group_category, stake, archive_link) 
                             VALUES (:n, :s, :g, :stk, :l)
-                        """), {"n": t_name, "s": t_school, "g": t_group, "stk": t_stake, "l": t_link})
+                        """), {"n": t_id, "s": t_school, "g": t_group, "stk": t_stake, "l": t_link})
                         count += 1
         
         if count > 0:
             st.cache_resource.clear()
             st.success(f"✅ Successfully imported {count} teams!")
         if duplicates:
-            st.warning(f"⚠️ The following team names already exist and were skipped: {', '.join(duplicates)}")
+            st.warning(f"⚠️ The following Team IDs already exist and were skipped: {', '.join(duplicates)}")
         if count > 0:
             time.sleep(1.5)
             st.rerun()
@@ -159,7 +159,6 @@ def render_dashboard(engine):
 # ==========================================
 def render_management(menu, engine, hash_password, delete_item):
     
-    # --- TEAM & GROUP ASSIGNMENT MANAGEMENT ---
     if menu == "Team & Assignment Management":
         st.header("📋 Team & Group Assignment Management")
         
@@ -169,53 +168,50 @@ def render_management(menu, engine, hash_password, delete_item):
         if col_btn2.button("📚 Bulk Add Teams", use_container_width=True):
             bulk_add_teams_dialog(engine)
             
-        # ADD SINGLE TEAM FORM
         with st.expander("➕ Add Single Team"):
             with st.form("add_single_team", clear_on_submit=True):
-                t_name = st.text_input("Team Name*")
+                t_id = st.text_input("Team ID*")
                 t_school = st.text_input("School")
                 t_group = st.selectbox("Group*", ["A", "B", "C", "D"])
                 t_stake = st.text_input("Stake / Problem Statement")
                 t_link = st.text_input("Archive Link")
                 
                 if st.form_submit_button("Save Team"):
-                    if t_name and t_group:
+                    if t_id and t_group:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO teams (name, school, group_category, stake, archive_link) 
+                                    INSERT INTO teams (team_id, school, group_category, stake, archive_link) 
                                     VALUES (:n, :s, :g, :stk, :l)
-                                """), {"n": t_name.strip(), "s": t_school.strip(), "g": t_group, "stk": t_stake.strip(), "l": t_link.strip()})
+                                """), {"n": t_id.strip(), "s": t_school.strip(), "g": t_group, "stk": t_stake.strip(), "l": t_link.strip()})
                             st.cache_resource.clear()
-                            st.success(f"✅ Team '{t_name}' added successfully!")
+                            st.success(f"✅ Team '{t_id}' added successfully!")
                             time.sleep(1)
                             st.rerun()
                         except Exception as e:
                             if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
-                                st.error(f"🚨 Error: Team '{t_name}' already exists.")
+                                st.error(f"🚨 Error: Team ID '{t_id}' already exists.")
                             else:
                                 st.error(f"❌ System Error: {e}")
                     else:
-                        st.error("🚨 Team Name and Group are required.")
+                        st.error("🚨 Team ID and Group are required.")
             
         st.divider()
         
         tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
         
-        # --- TAB 1: TEAM LIST ---
         with tab1:
-            apps_df = pd.read_sql("SELECT id, name, school, group_category, stake FROM teams ORDER BY group_category ASC, name ASC", engine)
+            apps_df = pd.read_sql("SELECT id, team_id, school, group_category, stake FROM teams ORDER BY group_category ASC, team_id ASC", engine)
             st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
             
             st.dataframe(apps_df, use_container_width=True, hide_index=True)
             
             st.write("Delete a Team:")
-            del_id = st.number_input("Enter Team ID to delete:", min_value=0, step=1)
+            del_id = st.number_input("Enter Row ID to delete:", min_value=0, step=1)
             if st.button("🗑️ Delete Team"):
                 if del_id > 0:
                     delete_item("teams", del_id)
 
-        # --- TAB 2: GROUP ASSIGNMENT ---
         with tab2:
             st.markdown("### Assign Juries to Groups")
             st.caption("Juries assigned to a group will automatically evaluate ALL teams within that group.")
@@ -261,8 +257,6 @@ def render_management(menu, engine, hash_password, delete_item):
                         st.cache_resource.clear()
                         st.toast(f"✅ Assignment for Group {g} saved!"); time.sleep(0.5); st.rerun()
 
-
-    # --- JURY MANAGEMENT ---
     elif menu == "Jury Management":
         st.header("👤 Jury Management")
         
@@ -272,7 +266,6 @@ def render_management(menu, engine, hash_password, delete_item):
         if col_j2.button("📚 Bulk Add Juries", use_container_width=True):
             bulk_add_reviewers_dialog(engine, hash_password)
 
-        # ADD SINGLE JURY FORM
         with st.expander("➕ Add Single Jury"):
             with st.form("add_single_jury", clear_on_submit=True):
                 j_name = st.text_input("Full Name*")
@@ -318,8 +311,6 @@ def render_management(menu, engine, hash_password, delete_item):
                 if c4.button("🗑️", key=f"dr_{row['id']}", use_container_width=True): 
                     delete_item("juries", row['id'])
 
-
-    # --- ADMIN MANAGEMENT ---
     elif menu == "User Management":
         st.header("🔑 System Admin Accounts")
         
