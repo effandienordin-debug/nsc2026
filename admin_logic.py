@@ -203,16 +203,36 @@ def render_management(menu, engine, hash_password, delete_item):
         tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
         
         with tab1:
-            apps_df = pd.read_sql("SELECT id, team_id, school, state, group_category, stake FROM teams ORDER BY group_category ASC, team_id ASC", engine)
-            st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
-            
-            st.dataframe(apps_df, use_container_width=True, hide_index=True)
-            
-            st.write("Delete a Team:")
-            del_id = st.number_input("Enter Row ID to delete:", min_value=0, step=1)
-            if st.button("🗑️ Delete Team"):
-                if del_id > 0:
-                    delete_item("teams", del_id)
+    apps_df = pd.read_sql("SELECT * FROM teams ORDER BY group_category ASC, team_id ASC", engine)
+    
+    # Kita paparkan data dalam bentuk table yang ada butang edit
+    for i, row in apps_df.iterrows():
+        cols = st.columns([1, 2, 2, 1, 1])
+        cols[0].write(row['team_id'])
+        cols[1].write(row['school'])
+        cols[2].write(row['group_category'])
+        
+        # Butang Edit
+        with cols[3].popover("Edit"):
+            with st.form(f"edit_{row['id']}"):
+                new_sch = st.text_input("School", value=row['school'])
+                new_grp = st.selectbox("Group", ["A", "B", "C", "D"], index=["A", "B", "C", "D"].index(row['group_category']))
+                new_link = st.text_input("Archive Link", value=row['archive_link'] if row['archive_link'] else "")
+                
+                if st.form_submit_button("Update"):
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            UPDATE teams SET school=:sch, group_category=:grp, archive_link=:link 
+                            WHERE id=:id
+                        """), {"sch": new_sch, "grp": new_grp, "link": new_link, "id": row['id']})
+                    st.success("Updated!")
+                    time.sleep(0.5)
+                    st.rerun()
+        
+        # Butang Delete (seperti yang sedia ada)
+        if cols[4].button("🗑️", key=f"del_{row['id']}"):
+            # Panggil fungsi delete anda di sini
+            st.rerun()
 
         with tab2:
             st.markdown("### Assign Juries to Groups")
