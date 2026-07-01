@@ -22,9 +22,9 @@ def get_local_image_base64(username):
 # ==========================================
 @st.dialog("📚 Bulk Add Teams")
 def bulk_add_teams_dialog(engine):
-    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), Stake, Archive Link` (One per line)")
+    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), State, Stake, Archive Link` (One per line)")
     raw_data = st.text_area("Paste Team List Here", height=200, 
-                            placeholder="T1, SMK Aminuddin Baki, A, LGM-Soil fertility, https://drive.link...")
+                            placeholder="T1, SMK Aminuddin Baki, A, Selangor, Food Waste, https://drive.link...")
     
     if st.button("Import Teams", type="primary"):
         if not raw_data.strip():
@@ -40,17 +40,18 @@ def bulk_add_teams_dialog(engine):
                     t_id = parts[0].strip()
                     t_school = parts[1].strip() if len(parts) > 1 else None
                     t_group = parts[2].strip().upper() if len(parts) > 2 else None
-                    t_stake = parts[3].strip() if len(parts) > 3 else None
-                    t_link = parts[4].strip() if len(parts) > 4 else None
+                    t_state = parts[3].strip() if len(parts) > 3 else None
+                    t_stake = parts[4].strip() if len(parts) > 4 else None
+                    t_link = parts[5].strip() if len(parts) > 5 else None
                     
                     check = conn.execute(text("SELECT id FROM teams WHERE team_id = :n"), {"n": t_id}).fetchone()
                     if check:
                         duplicates.append(t_id)
                     else:
                         conn.execute(text("""
-                            INSERT INTO teams (team_id, school, group_category, stake, archive_link) 
-                            VALUES (:n, :s, :g, :stk, :l)
-                        """), {"n": t_id, "s": t_school, "g": t_group, "stk": t_stake, "l": t_link})
+                            INSERT INTO teams (team_id, school, group_category, state, stake, archive_link) 
+                            VALUES (:n, :s, :g, :st, :stk, :l)
+                        """), {"n": t_id, "s": t_school, "g": t_group, "st": t_state, "stk": t_stake, "l": t_link})
                         count += 1
         
         if count > 0:
@@ -173,6 +174,7 @@ def render_management(menu, engine, hash_password, delete_item):
                 t_id = st.text_input("Team ID*")
                 t_school = st.text_input("School")
                 t_group = st.selectbox("Group*", ["A", "B", "C", "D"])
+                t_state = st.text_input("State")
                 t_stake = st.text_input("Stake / Problem Statement")
                 t_link = st.text_input("Archive Link")
                 
@@ -181,9 +183,9 @@ def render_management(menu, engine, hash_password, delete_item):
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO teams (team_id, school, group_category, stake, archive_link) 
-                                    VALUES (:n, :s, :g, :stk, :l)
-                                """), {"n": t_id.strip(), "s": t_school.strip(), "g": t_group, "stk": t_stake.strip(), "l": t_link.strip()})
+                                    INSERT INTO teams (team_id, school, group_category, state, stake, archive_link) 
+                                    VALUES (:n, :s, :g, :st, :stk, :l)
+                                """), {"n": t_id.strip(), "s": t_school.strip(), "g": t_group, "st": t_state.strip(), "stk": t_stake.strip(), "l": t_link.strip()})
                             st.cache_resource.clear()
                             st.success(f"✅ Team '{t_id}' added successfully!")
                             time.sleep(1)
@@ -201,7 +203,7 @@ def render_management(menu, engine, hash_password, delete_item):
         tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
         
         with tab1:
-            apps_df = pd.read_sql("SELECT id, team_id, school, group_category, stake FROM teams ORDER BY group_category ASC, team_id ASC", engine)
+            apps_df = pd.read_sql("SELECT id, team_id, school, state, group_category, stake FROM teams ORDER BY group_category ASC, team_id ASC", engine)
             st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
             
             st.dataframe(apps_df, use_container_width=True, hide_index=True)
