@@ -46,7 +46,7 @@ def init_db():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS teams (
                 id SERIAL PRIMARY KEY, 
-                name VARCHAR(255) UNIQUE, 
+                team_id VARCHAR(255) UNIQUE, 
                 school VARCHAR(255),
                 stake TEXT,
                 archive_link TEXT,
@@ -58,7 +58,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS evaluations (
                 id SERIAL PRIMARY KEY, 
                 jury_username VARCHAR(255), 
-                team_name VARCHAR(255), 
+                team_id VARCHAR(255), 
                 responses TEXT,  
                 report_score FLOAT DEFAULT 0, 
                 video_score FLOAT DEFAULT 0,
@@ -71,7 +71,6 @@ def init_db():
             )
         """))
         
-        # --- STRUKTUR BARU: GROUP ASSIGNMENTS ---
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS group_assignments (
                 id SERIAL PRIMARY KEY,
