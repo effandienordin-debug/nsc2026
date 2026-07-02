@@ -22,7 +22,7 @@ def get_local_image_base64(username):
 # ==========================================
 @st.dialog("📚 Bulk Add Teams")
 def bulk_add_teams_dialog(engine):
-    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), State, Stake, Archive Link` (One per line)")
+    st.markdown("**Format:** `Team ID, School, Group (A/B/C/D), State, PS, Archive Link` (One per line)")
     raw_data = st.text_area("Paste Team List Here", height=200, 
                             placeholder="T1, SMK Aminuddin Baki, A, Selangor, Food Waste, https://drive.link...")
     
@@ -41,7 +41,7 @@ def bulk_add_teams_dialog(engine):
                     t_school = parts[1].strip() if len(parts) > 1 else None
                     t_group = parts[2].strip().upper() if len(parts) > 2 else None
                     t_state = parts[3].strip() if len(parts) > 3 else None
-                    t_stake = parts[4].strip() if len(parts) > 4 else None
+                    t_ps = parts[4].strip() if len(parts) > 4 else None
                     t_link = parts[5].strip() if len(parts) > 5 else None
                     
                     check = conn.execute(text("SELECT id FROM teams WHERE team_id = :n"), {"n": t_id}).fetchone()
@@ -49,9 +49,9 @@ def bulk_add_teams_dialog(engine):
                         duplicates.append(t_id)
                     else:
                         conn.execute(text("""
-                            INSERT INTO teams (team_id, school, group_category, state, stake, archive_link) 
-                            VALUES (:n, :s, :g, :st, :stk, :l)
-                        """), {"n": t_id, "s": t_school, "g": t_group, "st": t_state, "stk": t_stake, "l": t_link})
+                            INSERT INTO teams (team_id, school, group_category, state, problem_statement, archive_link) 
+                            VALUES (:n, :s, :g, :st, :ps, :l)
+                        """), {"n": t_id, "s": t_school, "g": t_group, "st": t_state, "ps": t_ps, "l": t_link})
                         count += 1
         
         if count > 0:
@@ -175,7 +175,7 @@ def render_management(menu, engine, hash_password, delete_item):
                 t_school = st.text_input("School")
                 t_group = st.selectbox("Group*", ["A", "B", "C", "D"])
                 t_state = st.text_input("State")
-                t_stake = st.text_input("Stake / Problem Statement")
+                t_ps = st.text_input("Problem Statement")
                 t_link = st.text_input("Archive Link")
                 
                 if st.form_submit_button("Save Team"):
@@ -183,9 +183,9 @@ def render_management(menu, engine, hash_password, delete_item):
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO teams (team_id, school, group_category, state, stake, archive_link) 
-                                    VALUES (:n, :s, :g, :st, :stk, :l)
-                                """), {"n": t_id.strip(), "s": t_school.strip(), "g": t_group, "st": t_state.strip(), "stk": t_stake.strip(), "l": t_link.strip()})
+                                    INSERT INTO teams (team_id, school, group_category, state, problem_statement, archive_link) 
+                                    VALUES (:n, :s, :g, :st, :ps, :l)
+                                """), {"n": t_id.strip(), "s": t_school.strip(), "g": t_group, "st": t_state.strip(), "ps": t_ps.strip(), "l": t_link.strip()})
                             st.cache_resource.clear()
                             st.success(f"✅ Team '{t_id}' added successfully!")
                             time.sleep(1)
@@ -203,16 +203,44 @@ def render_management(menu, engine, hash_password, delete_item):
         tab1, tab2 = st.tabs(["📋 Registered Teams", "👥 Group Assignments (Juries)"])
         
         with tab1:
-            apps_df = pd.read_sql("SELECT id, team_id, school, state, group_category, stake FROM teams ORDER BY group_category ASC, team_id ASC", engine)
+            apps_df = pd.read_sql("SELECT * FROM teams ORDER BY group_category ASC, team_id ASC", engine)
             st.info(f"📊 **Total Teams Registered:** {len(apps_df)}")
             
-            st.dataframe(apps_df, use_container_width=True, hide_index=True)
+            st.markdown("**Team List (Click Edit to modify details)**")
             
-            st.write("Delete a Team:")
-            del_id = st.number_input("Enter Row ID to delete:", min_value=0, step=1)
-            if st.button("🗑️ Delete Team"):
-                if del_id > 0:
-                    delete_item("teams", del_id)
+            # --- FUNGSI EDIT & DELETE (LOOP DATAFRAME) ---
+            for i, row in apps_df.iterrows():
+                cols = st.columns([1.5, 3, 1, 1, 1])
+                cols[0].write(row['team_id'])
+                cols[1].write(row['school'] if row['school'] else "N/A")
+                cols[2].write(f"Grp {row['group_category']}")
+                
+                with cols[3].popover("✏️ Edit"):
+                    with st.form(f"edit_{row['id']}", clear_on_submit=False):
+                        n_sch = st.text_input("School", value=row['school'] if row['school'] else "")
+                        # Urus pilihan default untuk group
+                        g_opts = ["A", "B", "C", "D"]
+                        g_idx = g_opts.index(row['group_category']) if row['group_category'] in g_opts else 0
+                        n_grp = st.selectbox("Group", g_opts, index=g_idx)
+                        
+                        n_st = st.text_input("State", value=row['state'] if row['state'] else "")
+                        n_ps = st.text_input("Problem Statement", value=row['problem_statement'] if row['problem_statement'] else "")
+                        n_link = st.text_input("Archive Link", value=row['archive_link'] if row['archive_link'] else "")
+                        
+                        if st.form_submit_button("Update Team"):
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE teams 
+                                    SET school=:sch, group_category=:grp, state=:st, problem_statement=:ps, archive_link=:link 
+                                    WHERE id=:id
+                                """), {"sch": n_sch, "grp": n_grp, "st": n_st, "ps": n_ps, "link": n_link, "id": row['id']})
+                            st.cache_resource.clear()
+                            st.toast(f"✅ Team {row['team_id']} updated!")
+                            time.sleep(0.5)
+                            st.rerun()
+                
+                if cols[4].button("🗑️", key=f"del_{row['id']}"):
+                    delete_item("teams", row['id'])
 
         with tab2:
             st.markdown("### Assign Juries to Groups")
